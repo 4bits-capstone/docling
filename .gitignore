@@ -1,8 +1,9 @@
 .obsidian
 .venv
+.vscode
 
 # Raw processing files
 inputs/
 outputs/
 ground-truths/
-label-studio-output/o
+label-studio-output/
