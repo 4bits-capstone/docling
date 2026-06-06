@@ -15,6 +15,10 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
     TableStructureOptions,
 )
+from docling.datamodel.accelerator_options import (
+    AcceleratorOptions,
+    AcceleratorDevice,
+)
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 # Import a custom model
@@ -40,9 +44,16 @@ def main() -> None:
 
     # Edit the pipeline here
     pipeline_options = PdfPipelineOptions()
+
+    pipeline_options.accelerator_options = AcceleratorOptions(
+        num_threads=8,
+        device=AcceleratorDevice.CUDA,
+    )
+
     pipeline_options.do_ocr = False # We run out of memory when using OCR
     pipeline_options.do_table_structure = True
     
+
     # --- Not exactly sure about this one right now
     pipeline_options.table_structure_options = TableStructureOptions(do_cell_matching=False)
 
@@ -63,7 +74,6 @@ def main() -> None:
         output_file = OUTPUT_DIR / f"{input_file.stem}.json"
         payload = {
             "source_file": str(input_file),
-            "conversion": result.model_dump(),
             "document": result.document.export_to_dict(),
         }
 
