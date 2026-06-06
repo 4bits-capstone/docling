@@ -21,7 +21,9 @@ from docling.datamodel.accelerator_options import (
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 # Import a custom model
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+# from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+# from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
+from docling.backend.docling_parse_backend import ThreadedDoclingParseDocumentBackend
 # from docling.datamodel.pipeline_options import TesseractOcrOptions, TesseractCliOcrOptions, OcrMacOptions
 
 def _iter_input_files(INPUT_DIR: Path) -> list[Path]:
@@ -43,11 +45,11 @@ def main() -> None:
     pipeline_options = PdfPipelineOptions()
     #Gpu Options
     pipeline_options.accelerator_options = AcceleratorOptions(
-        num_threads=8,
+        num_threads=2,
         device=AcceleratorDevice.CUDA,
     )
 
-    pipeline_options.do_ocr = False # We run out of memory when using OCR
+    pipeline_options.do_ocr = True # We run out of memory when using OCR
     pipeline_options.do_table_structure = True
     
     # Fast table processing
@@ -57,7 +59,9 @@ def main() -> None:
         format_options={
             InputFormat.PDF: PdfFormatOption (
                 pipeline_options=pipeline_options, 
-                backend=PyPdfiumDocumentBackend
+                #backend=PyPdfiumDocumentBackend
+                backend=ThreadedDoclingParseDocumentBackend
+                #backend=DoclingParseDocumentBackend
             )
         }
     )

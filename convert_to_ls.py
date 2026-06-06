@@ -87,27 +87,73 @@ def convert_bbox_to_ls(source_file: str | Path) -> list[dict]:
         return regions
 
     # Docling native format — dict with "pages"
+        # Docling native format
     if isinstance(data, dict):
         regions = []
-        for page_idx, page in enumerate(data.get("pages", [])):
-            pw = page.get("page_width", 0)
-            ph = page.get("page_height", 0)
-            for item_idx, item in enumerate(page.get("items", [])):
-                bbox = item.get("bbox")
-                if bbox is None:
-                    continue
-                ls_bbox = _convert_single_bbox(bbox, pw, ph)
-                if ls_bbox is None:
-                    continue
-                label = map_label(item)
-                regions.append({
-                    "id": f"region_{page_idx}_{item_idx}",
-                    "from_name": "layout_label",
-                    "to_name": "pdf",
-                    "type": "rectanglelabels",
-                    "value": {**ls_bbox, "rectanglelabels": [label]},
-                    "page_index": page_idx,
-                })
+
+        document = data.get("document", data)
+        pages = document.get("pages", {})
+
+        def get_page(page_no):
+            if isinstance(pages, dict):
+                return pages.get(str(page_no)) or pages.get(page_no)
+            if isinstance(pages, list):
+                idx = int(page_no) - 1
+                if 0 <= idx < len(pages):
+                    return pages[idx]
+            return None
+
+        all_items = []
+        for collection_name in ["texts", "pictures", "tables", "form_items"]:
+            for item in document.get(collection_name, []):
+                all_items.append(item)
+
+        for item_idx, item in enumerate(all_items):
+            prov = item.get("prov", [])
+            if not prov:
+                continue
+
+            src = prov[0]
+            bbox = src.get("bbox")
+            page_no = src.get("page_no")
+
+            if bbox is None or page_no is None:
+                continue
+
+            page = get_page(page_no)
+            if page is None:
+                print(f"Skipping item {item_idx}: missing page {page_no}")
+                continue
+
+            pw = (
+                page.get("page_width")
+                or page.get("width")
+                or page.get("size", {}).get("width")
+                or 0
+            )
+            ph = (
+                page.get("page_height")
+                or page.get("height")
+                or page.get("size", {}).get("height")
+                or 0
+            )
+
+            ls_bbox = _convert_single_bbox(bbox, pw, ph)
+            if ls_bbox is None:
+                continue
+
+            label = map_label(item)
+            page_index = int(page_no) - 1
+
+            regions.append({
+                "id": f"region_{page_index}_{item_idx}",
+                "from_name": "layout_label",
+                "to_name": "pdf",
+                "type": "rectanglelabels",
+                "value": {**ls_bbox, "rectanglelabels": [label]},
+                "page_index": page_index,
+            })
+
         return regions
 
     raise ValueError(f"Unsupported JSON structure in {source_file}")
