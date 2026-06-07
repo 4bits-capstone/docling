@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 from label_studio_sdk.client import LabelStudio
-
+import os
+import requests
 import argparse
 import json
 from collections.abc import Iterable
@@ -12,12 +13,18 @@ from pathlib import Path
 from uuid import uuid4
 
 LABEL_STUDIO = "http://localhost:8080"
-LS_API_KEY = "a81a470adcac997a1fc177fe9d09aec21a84e48f"
+LS_API_KEY = os.getenv("LABEL_STUDIO_API_KEY")
 IMAGE_SERVER = "http://localhost:9090"
 PREDICTIONS_DIR = "outputs"
 OUTPUT_DIR = "label-studio-output"
 
 # Helper Functions
+
+HEADERS = {
+    "Authorization": f"Bearer {LS_API_KEY}",
+    "Content-Type": "application/json",
+}
+
 
 def _convert_single_bbox(bbox, page_width, page_height):
     l = float(bbox["l"])
@@ -151,6 +158,7 @@ def convert_bbox_to_ls(source_file: str | Path) -> list[dict]:
                 "to_name": "pdf",
                 "type": "rectanglelabels",
                 "value": {**ls_bbox, "rectanglelabels": [label]},
+                "item_index": page_index,
                 "page_index": page_index,
             })
 
@@ -235,36 +243,93 @@ def print_ls_output():
             json.dump(regions, f, indent=2)
         print(f"wrote {len(regions)} regions to {dst}")
 
-
 def main(project_id: int, model_version: str):
-    # Initialise a label studio connection
-    ls = LabelStudio(base_url=LABEL_STUDIO, api_key=LS_API_KEY)
+    if not LS_API_KEY:
+        raise RuntimeError(
+            "LABEL_STUDIO_ACCESS_TOKEN is not set. "
+            "Use your PAT to refresh an access token first, then set it."
+        )
 
-    # Get a label studio project ID
-    tasks = {t.id: t for t in ls.tasks.list(project=project_id)}
+    # Get tasks from Label Studio project
+    resp = requests.get(
+    f"{LABEL_STUDIO}/api/projects/{project_id}/tasks/",
+    headers=HEADERS,
+)
 
-    # Retrieve docling outputs from the folder
+    if not resp.ok:
+        raise RuntimeError(f"Failed to list tasks: {resp.status_code} {resp.text}")
+
+    tasks_json = resp.json()
+
+    print("Tasks response type:", type(tasks_json))
+    if isinstance(tasks_json, dict):
+        print("Tasks response keys:", tasks_json.keys())
+
+    if isinstance(tasks_json, list):
+        tasks_list = tasks_json
+
+    elif isinstance(tasks_json, dict):
+        if "results" in tasks_json:
+            tasks_list = tasks_json["results"]
+        elif "tasks" in tasks_json:
+            tasks_list = tasks_json["tasks"]
+        else:
+            raise RuntimeError(
+                f"Could not find task list in response. Keys: {list(tasks_json.keys())}"
+            )
+
+    else:
+        raise RuntimeError(f"Unexpected tasks response type: {type(tasks_json)}")
+
+    tasks = {t["id"]: t for t in tasks_list}
+
     docling_outputs = Path(PREDICTIONS_DIR)
+
+    uploaded = 0
+
     for output in sorted(docling_outputs.iterdir()):
         if output.suffix != ".json":
             continue
+
         regions = convert_bbox_to_ls(output)
 
+        # Important for multi-page Image valueList="$pages"
+        for r in regions:
+            if "item_index" not in r:
+                r["item_index"] = r.get("page_index", 0)
+
         stem = output.stem
-        task_id = next((tid for tid, t in tasks.items() if stem in str(t.data)), None)
+
+        task_id = next(
+            (tid for tid, t in tasks.items() if stem in str(t.get("data", {}))),
+            None
+        )
+
         if task_id is None:
             print(f"skipping {output.name}: no matching task found")
             continue
 
-        ls.predictions.create(
-            project=project_id,
-            task=task_id,
-            result=regions,
-            model_version=model_version
+        payload = {
+            "project": project_id,
+            "task": task_id,
+            "result": regions,
+            "model_version": model_version or "docling",
+        }
+
+        pred_resp = requests.post(
+            f"{LABEL_STUDIO}/api/predictions/",
+            headers=HEADERS,
+            json=payload,
         )
 
-    print(f"uploaded {len(regions)} for predictions for task {task_id} ({output.name})")
+        if pred_resp.ok:
+            print(f"uploaded {len(regions)} predictions for task {task_id} ({output.name})")
+            uploaded += 1
+        else:
+            print(f"ERROR uploading {output.name}: {pred_resp.status_code}")
+            print(pred_resp.text[:500])
 
+    print(f"Done. Uploaded predictions for {uploaded} file(s).")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pass exported Docling predictions into a single Label Studio Project")

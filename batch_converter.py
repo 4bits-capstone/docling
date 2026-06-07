@@ -21,10 +21,11 @@ from docling.datamodel.accelerator_options import (
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 # Import a custom model
-# from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 # from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
-from docling.backend.docling_parse_backend import ThreadedDoclingParseDocumentBackend
-# from docling.datamodel.pipeline_options import TesseractOcrOptions, TesseractCliOcrOptions, OcrMacOptions
+# from docling.backend.docling_parse_backend import ThreadedDoclingParseDocumentBackend
+
+from docling.datamodel.pipeline_options import TesseractOcrOptions, TesseractCliOcrOptions, OcrMacOptions
 
 def _iter_input_files(INPUT_DIR: Path) -> list[Path]:
     return sorted(path for path in INPUT_DIR.rglob("*") if path.is_file())
@@ -59,8 +60,8 @@ def main() -> None:
         format_options={
             InputFormat.PDF: PdfFormatOption (
                 pipeline_options=pipeline_options, 
-                #backend=PyPdfiumDocumentBackend
-                backend=ThreadedDoclingParseDocumentBackend
+                backend=PyPdfiumDocumentBackend
+                #backend=ThreadedDoclingParseDocumentBackend
                 #backend=DoclingParseDocumentBackend
             )
         }
