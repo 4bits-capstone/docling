@@ -19,7 +19,7 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 # Import a custom model
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 # from docling.datamodel.pipeline_options import TesseractOcrOptions, TesseractCliOcrOptions, OcrMacOptions
-from hierarchical.postprocessor import ResultPostprocessor
+from scripts.enrich_headings import FontHeadingEnricher
 
 def _iter_input_files(INPUT_DIR: Path) -> list[Path]:
     return sorted(path for path in INPUT_DIR.rglob("*") if path.is_file())
@@ -38,8 +38,9 @@ def main() -> None:
     start_time = time.perf_counter()
     # Edit the pipeline here
     pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = False # We run out of memory when using OCR
+    pipeline_options.do_ocr = False                  # We run out of memory when using OCR
     pipeline_options.do_table_structure = True
+    pipeline_options.do_code_enrichment = False
     
     # Fast table processing
     pipeline_options.table_structure_options = TableStructureOptions(do_cell_matching=False)
@@ -57,7 +58,10 @@ def main() -> None:
         print(f"Processing {pdf.stem}")
         source = pdf
         result = doc_converter.convert(source)
-        ResultPostprocessor(result, source=source).process()
+
+        # Enrich headings from font data
+        enricher = FontHeadingEnricher()
+        enricher.enrich(result.document, str(source))
 
         # Export the result to docling JSON
         with open(OUTPUT_DIR / f"{pdf.stem}.json", "w", encoding="utf-8") as f:

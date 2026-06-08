@@ -14,6 +14,7 @@ from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions, TableStructureOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from scripts.enrich_headings import FontHeadingEnricher
 
 LABEL_STUDIO = "http://localhost:8080"
 LS_API_KEY = "a81a470adcac997a1fc177fe9d09aec21a84e48f"
@@ -23,7 +24,6 @@ OUTPUT_DIR = "label-studio-output"
 
 
 # Helper Functions
-
 
 def _convert_single_bbox(bbox, page_width, page_height):
     l = float(bbox["l"])
@@ -150,7 +150,8 @@ def map_label(item):
     raw = str(item.get("label", "unspecified"))
 
     if raw == "section_header":
-        level = int(item.get("level", 1))
+        meta = item.get("meta", {}) or {}
+        level = int(meta.get("hf__heading_level", item.get("level", 1)))
         if level < 1:
             level = 1
         if level > 5:
@@ -209,6 +210,11 @@ def do_ocr(source_file: str | Path) -> list[dict]:
     print(f"processing {source_path}")
 
     result = converter.convert(source_path)
+
+    # Enrich headings from font data
+    enricher = FontHeadingEnricher()
+    enricher.enrich(result.document, str(source_path))
+
     doc = result.document.export_to_dict()
     pages = doc.get("pages", {})
 

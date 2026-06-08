@@ -8,3 +8,7 @@ inputs/
 outputs/
 ground-truths/
 label-studio-output/
+all_inputs
+
+# cache
+*__pycache__
