@@ -16,10 +16,9 @@ from docling.datamodel.pipeline_options import (
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
-# Import a custom model
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-# from docling.datamodel.pipeline_options import TesseractOcrOptions, TesseractCliOcrOptions, OcrMacOptions
-from scripts.enrich_headings import FontHeadingEnricher
+
+from heading_enricher import HeadingEnricher
 
 def _iter_input_files(INPUT_DIR: Path) -> list[Path]:
     return sorted(path for path in INPUT_DIR.rglob("*") if path.is_file())
@@ -59,9 +58,8 @@ def main() -> None:
         source = pdf
         result = doc_converter.convert(source)
 
-        # Enrich headings from font data
-        enricher = FontHeadingEnricher()
-        enricher.enrich(result.document, str(source))
+        # Enrich section headers with PyMuPDF-based heading levels (H1/H2/H3)
+        HeadingEnricher(n_tiers=3).enrich(result.document, str(pdf))
 
         # Export the result to docling JSON
         with open(OUTPUT_DIR / f"{pdf.stem}.json", "w", encoding="utf-8") as f:

@@ -14,7 +14,6 @@ from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions, TableStructureOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from scripts.enrich_headings import FontHeadingEnricher
 
 LABEL_STUDIO = "http://localhost:8080"
 LS_API_KEY = "a81a470adcac997a1fc177fe9d09aec21a84e48f"
@@ -210,10 +209,6 @@ def do_ocr(source_file: str | Path) -> list[dict]:
     print(f"processing {source_path}")
 
     result = converter.convert(source_path)
-
-    # Enrich headings from font data
-    enricher = FontHeadingEnricher()
-    enricher.enrich(result.document, str(source_path))
 
     doc = result.document.export_to_dict()
     pages = doc.get("pages", {})
