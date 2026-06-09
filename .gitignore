@@ -12,3 +12,5 @@ all_inputs
 
 # cache
 *__pycache__
+
+*.zip

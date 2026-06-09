@@ -1,3 +1,34 @@
+"""
+Convert Docling layout predictions to Label Studio region format.
+
+Two modes:
+  1. Local mode (default) — writes JSON region arrays to label-studio-output/
+  2. Upload mode (--project_id) — pushes predictions directly to a Label Studio project
+
+Usage:
+    # Local: convert docling JSONs from outputs/ to label-studio-output/
+    python convert_to_ls.py --local
+
+    # Local: run Docling pipeline on PDFs directly
+    python convert_to_ls.py --local --pdf-dir path/to/pdfs
+
+    # Upload: convert docling JSONs from outputs/ and push them
+    python convert_to_ls.py --project_id 1 --model_version "docling-v2"
+
+    # Upload: run Docling on PDFs, then push
+    python convert_to_ls.py --project_id 1 --model_version "v1" --pdf-dir path/to/pdfs
+
+Input formats (--local mode with no --pdf-dir):
+    Expects Docling-exported .json files in the outputs/ directory.
+    Each file should be either:
+      - Docling native dict with a "pages" key, or
+      - Label Studio export array of task objects (re-export pass-through)
+
+Output:
+    Writes flat JSON arrays of Label Studio region objects to label-studio-output/,
+    one per input file, with bounding boxes as percentage coordinates (0-100).
+"""
+
 # Install dependencies
 # %pip install docling
 # %pip install --upgrade label-studio-sdk
