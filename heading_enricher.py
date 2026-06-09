@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Optional, Union
 
 import fitz
-from docling_core.types.doc import (
-    BoundingBox,
+from docling_core.types.doc.base import BoundingBox
+from docling_core.types.doc.document import (
     DoclingDocument,
     Formatting,
     SectionHeaderItem,
@@ -278,6 +278,7 @@ class HeadingEnricher:
             if not isinstance(heading, SectionHeaderItem):
                 continue
             title_item = TitleItem(
+                self_ref=heading.self_ref,
                 text=heading.text,
                 orig=heading.orig,
                 prov=heading.prov,
