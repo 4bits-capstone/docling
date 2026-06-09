@@ -46,6 +46,8 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions, TableStructureOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
+import heading_enricher
+
 LABEL_STUDIO = "http://localhost:8080"
 LS_API_KEY = "a81a470adcac997a1fc177fe9d09aec21a84e48f"
 IMAGE_SERVER = "http://localhost:9090"
@@ -240,6 +242,7 @@ def do_ocr(source_file: str | Path) -> list[dict]:
     print(f"processing {source_path}")
 
     result = converter.convert(source_path)
+    heading_enricher.HeadingEnricher().enrich(result.document, source_path)
 
     doc = result.document.export_to_dict()
     pages = doc.get("pages", {})

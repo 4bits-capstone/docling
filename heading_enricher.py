@@ -2,15 +2,19 @@
 
 Uses PyMuPDF to extract font size and bold/italic properties from
 SectionHeaderItem bounding boxes, then assigns heading levels via
-rule-based font size rank analysis with bold/non-bold overrides.
+percentile-based font-size tier clustering with bold/non-bold rules.
 
-Rules (applied to font-size ranks from largest to smallest):
-    rank 0 (largest), non-bold  ->  TitleItem
-    rank 1 (second),  bold      ->  H1
-    rank 2 (third),   bold      ->  H2
-    rank 3 (fourth),  bold      ->  H3
-    rank 3 (fourth),  non-bold  ->  H4
-    all other ranks             ->  fallback by rank alone
+Tiers are computed from the sorted unique font sizes by dividing them
+into *n_tiers* percentile groups, so similar sizes are clustered together.
+
+Rules within each tier:
+    tier 0 (largest),  non-bold  ->  TitleItem
+    tier ≤ 1,          bold      ->  H1
+    tier = 2,          bold      ->  H2
+    tier ≥ 3,          bold      ->  H3
+    tier = 3,          non-bold  ->  H4
+    tier ≥ 4,          non-bold  ->  H5
+    all other combinations      ->  fallback by tier index
 
 Usage:
     result = converter.convert("report.pdf")
@@ -21,6 +25,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import fitz
+import numpy as np
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -31,7 +36,7 @@ from docling_core.types.doc.document import (
 
 
 class HeadingEnricher:
-    """Assign heading levels (Title/H1-H4) to SectionHeaderItems using
+    """Assign heading levels (Title/H1-H5) to SectionHeaderItems using
     PyMuPDF font size and bold analysis.
 
     Runs as a post-processing step after docling conversion.
@@ -230,26 +235,54 @@ class HeadingEnricher:
         return name_has_italic or flag_has_italic
 
     def _assign_levels(self, heading_styles: list[dict]) -> None:
-        """Assign heading levels by font-size rank with bold/non-bold rules.
+        """Assign heading levels via percentile-based tier clustering.
 
-        Rules:
-            rank 0 (largest), non-bold  ->  title (level=0)
-            rank 3 (fourth),  bold      ->  H3   (level=3)
-            rank 3 (fourth),  non-bold  ->  H4   (level=4)
-            all others                  ->  level = min(rank + 1, n_tiers)
+        Unique font sizes are sorted descending and divided into *n_tiers*
+        percentile groups.  Bold/non-bold rules are applied within each tier:
+
+            tier 0 (largest),  non-bold  ->  0 (TitleItem)
+            tier ≤ 1,          bold      ->  1 (H1)
+            tier = 2,          bold      ->  2 (H2)
+            tier ≥ 3,          bold      ->  3 (H3)
+            tier = 3,          non-bold  ->  4 (H4)
+            tier ≥ 4,          non-bold  ->  5 (H5)
+            all other                  ->  min(tier + 1, n_tiers)
         """
         sizes = sorted(set(s["font_size"] for s in heading_styles), reverse=True)
+        if not sizes:
+            return
+
+        tier_of_size = {}
+        if len(sizes) >= self.n_tiers:
+            percentiles = [100 * (i + 1) / self.n_tiers for i in range(self.n_tiers - 1)]
+            boundaries = np.percentile(sizes, percentiles)
+            for size in sizes:
+                tier = 0
+                for bound in boundaries:
+                    if size <= bound:
+                        tier += 1
+                tier_of_size[size] = min(tier, self.n_tiers - 1)
+        else:
+            for i, size in enumerate(sizes):
+                tier_of_size[size] = i
 
         for hs in heading_styles:
-            rank = sizes.index(hs["font_size"])
-            if rank == 0 and not hs["is_bold"]:
+            tier = tier_of_size[hs["font_size"]]
+
+            if tier == 0 and not hs["is_bold"]:
                 hs["level"] = 0
-            elif rank == 3 and hs["is_bold"]:
+            elif tier <= 1 and hs["is_bold"]:
+                hs["level"] = 1
+            elif tier == 2 and hs["is_bold"]:
+                hs["level"] = 2
+            elif tier >= 3 and hs["is_bold"]:
                 hs["level"] = 3
-            elif rank == 3 and not hs["is_bold"]:
+            elif tier == 3 and not hs["is_bold"]:
                 hs["level"] = 4
+            elif tier >= 4 and not hs["is_bold"]:
+                hs["level"] = 5
             else:
-                hs["level"] = min(rank + 1, self.n_tiers)
+                hs["level"] = min(tier + 1, self.n_tiers)
 
     @staticmethod
     def _apply_to_document(heading_styles: list[dict]) -> None:
@@ -278,8 +311,8 @@ class HeadingEnricher:
             if not isinstance(heading, SectionHeaderItem):
                 continue
             title_item = TitleItem(
-                self_ref=heading.self_ref,
                 text=heading.text,
+                self_ref=heading.self_ref,
                 orig=heading.orig,
                 prov=heading.prov,
                 formatting=heading.formatting,

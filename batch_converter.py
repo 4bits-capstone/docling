@@ -70,7 +70,7 @@ def main() -> None:
         result = doc_converter.convert(source)
 
         # Enrich section headers with PyMuPDF-based heading levels (H1/H2/H3)
-        HeadingEnricher(n_tiers=3).enrich(result.document, str(pdf))
+        HeadingEnricher(n_tiers=5).enrich(result.document, str(pdf))
 
         # Export the result to docling JSON
         with open(OUTPUT_DIR / f"{pdf.stem}.json", "w", encoding="utf-8") as f:
