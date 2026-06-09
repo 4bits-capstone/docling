@@ -5,6 +5,7 @@ batch_converter.py:
 
 """
 
+import argparse
 import json
 import time
 from pathlib import Path
@@ -24,15 +25,25 @@ def _iter_input_files(INPUT_DIR: Path) -> list[Path]:
     return sorted(path for path in INPUT_DIR.rglob("*") if path.is_file())
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Batch convert PDFs to Docling JSON.")
+    parser.add_argument(
+        "--pdf", "-p",
+        type=str,
+        help="Single PDF filepath to process (skips inputs/ directory).",
+    )
+    args = parser.parse_args()
 
-    INPUT_DIR = Path("./inputs")
     OUTPUT_DIR = Path("./outputs")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    input_files = _iter_input_files(INPUT_DIR)
-    if not input_files:
-        print(f"No files found in {INPUT_DIR}.")
-        return
+    if args.pdf:
+        input_files = [Path(args.pdf)]
+    else:
+        INPUT_DIR = Path("./inputs")
+        input_files = _iter_input_files(INPUT_DIR)
+        if not input_files:
+            print(f"No files found in {INPUT_DIR}.")
+            return
 
     start_time = time.perf_counter()
     # Edit the pipeline here
