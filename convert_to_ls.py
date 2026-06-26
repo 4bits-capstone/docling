@@ -303,7 +303,6 @@ def _predictions_to_regions(predictions: list[dict]) -> list[dict]:
         })
     return regions
 
-
 # Labeling Config for OCR using Multi-page document annotation
 labeling_config = """
 <View style="display:flex;align-items:start;gap:8px;flex-direction:row">
@@ -332,7 +331,6 @@ labeling_config = """
   </View>
 
 """
-
 
 def print_ls_output(pdf_dir=None):
     out_dir = Path(OUTPUT_DIR)

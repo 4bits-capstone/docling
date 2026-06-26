@@ -90,3 +90,76 @@ doc_converter = DocumentConverter(
 Simply put, the 'document converter' can employ a specific pipeline for use based on specific formats.
 
 It returns a 'Docling document', which can then be used to call export methods in markdown, dictionary, or document tokens. Alternatively, it can be serialised or chunked.
+
+---
+
+### Heading enrichment
+
+`heading_enricher.py` enriches `SectionHeaderItem`s in a converted `DoclingDocument` with heading levels (Title / H1–H5). It combines three signals, in priority order:
+
+1. **Table-of-contents analysis** (PyMuPDF only) — reads the embedded PDF outline, or scans the first pages for a `Contents` page (with PyMuPDF OCR fallback for scanned PDFs).
+2. **DeepSeek style-level detection** — sends the candidate headings (text + font size + bold/italic) to the DeepSeek chat completions API (`deepseek-V4-Flash` by default) and asks for a JSON level assignment. Responses are cached on disk in `./.cache/deepseek/` keyed by a hash of the input, so repeated runs of the same PDF are free.
+3. **PyMuPDF font-size tier clustering** — the original heuristic that groups unique font sizes into percentile tiers and maps them to levels using bold/non-bold rules. Used as the final fallback.
+
+The resolved level, the source that won (`toc` / `deepseek` / `tier`), and the candidate levels from all three signals are written to `./headers/{pdf_stem}_headers.json`.
+
+#### Setup
+
+Install the additional dependency used for TOC matching:
+
+```powershell
+pip install rapidfuzz
+```
+
+Set the DeepSeek API key — either as an environment variable, or in the existing `.env` file (renamed to the standard name):
+
+```powershell
+$env:DEEPSEEK_API_KEY="sk-..."
+```
+
+```ini
+# .env
+DEEPSEEK_API_KEY = sk-...
+```
+
+Run with the new options:
+
+```powershell
+python batch_converter.py                       # uses DeepSeek by default
+python batch_converter.py --no-deepseek         # tier-only fallback
+python batch_converter.py --deepseek-model deepseek-chat
+python batch_converter.py -p .\inputs\report.pdf
+```
+
+#### Standalone detection
+
+`heading_enricher.py` can also run on its own — no `DoclingDocument` is
+required. It opens the PDF, detects candidates, applies the same
+TOC / DeepSeek / tier pipeline, and returns a typed `HeadingDetectionResult`:
+
+```python
+from heading_enricher import HeadingEnricher
+
+enricher = HeadingEnricher()
+result = enricher.detect("report.pdf")
+
+for h in result.headings:
+    print(f"p{h.page_no:>3}  L{h.final_level}  ({h.source:<8})  {h.text}")
+
+result.save_json("./headers/report_headers.json")
+```
+
+A small CLI is included:
+
+```powershell
+python heading_enricher.py report.pdf
+python heading_enricher.py report.pdf --out .\headers\report.json --no-deepseek
+python heading_enricher.py report.pdf --max-scan-pages 50 --heading-size-ratio 1.2
+```
+
+Re-load a previously saved result:
+
+```python
+from heading_enricher import HeadingEnricher
+result = HeadingEnricher.from_dict(json.load(open("report_headers.json")))
+```

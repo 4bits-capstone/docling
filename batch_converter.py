@@ -31,6 +31,17 @@ def main() -> None:
         type=str,
         help="Single PDF filepath to process (skips inputs/ directory).",
     )
+    parser.add_argument(
+        "--no-deepseek",
+        action="store_true",
+        help="Disable DeepSeek-based heading-level classification.",
+    )
+    parser.add_argument(
+        "--deepseek-model",
+        type=str,
+        default="deepseek-V4-Flash",
+        help="DeepSeek model id (default: deepseek-V4-Flash).",
+    )
     args = parser.parse_args()
 
     OUTPUT_DIR = Path("./outputs")
@@ -69,8 +80,13 @@ def main() -> None:
         source = pdf
         result = doc_converter.convert(source)
 
-        # Enrich section headers with PyMuPDF-based heading levels (H1/H2/H3)
-        HeadingEnricher(n_tiers=5).enrich(result.document, str(pdf))
+        # Enrich section headers with PyMuPDF + (optional) DeepSeek
+        HeadingEnricher(
+            n_tiers=5,
+            write_headers_json=True,
+            use_deepseek=not args.no_deepseek,
+            deepseek_model=args.deepseek_model,
+        ).enrich(result.document, str(pdf))
 
         # Export the result to docling JSON
         with open(OUTPUT_DIR / f"{pdf.stem}.json", "w", encoding="utf-8") as f:

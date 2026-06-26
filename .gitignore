@@ -2,6 +2,7 @@
 .obsidian
 .venv
 .vscode
+.env
 
 # Raw processing files
 inputs/
@@ -9,8 +10,10 @@ outputs/
 ground-truths/
 label-studio-output/
 all_inputs
+other-docs/
 
 # cache
 *__pycache__
+.cache
 
 *.zip
